@@ -24,3 +24,6 @@ Thumbs.db
 
 # Models (large files)
 ./models/
+./*/*.pth
+./*.pth
+./*/glove.6B/
