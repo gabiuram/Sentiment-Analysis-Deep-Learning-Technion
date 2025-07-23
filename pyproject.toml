@@ -3,13 +3,20 @@ name = "sentiment analysis"
 version = "0.1.0"
 description = "Final project of course Deep Learning (00460217), Technion, Spring semester 2025."
 authors = [
-    {name = "Gabriel Uram", email="gabriel.uram@campus.technion.ac.il"},
-    {name = "Ori Razon", email="ori.razon@campus.technion.ac.il"},
+    "Gabriel Uram <gabriel.uram@campus.technion.ac.il>",
+    "Ori Razon <ori.razon@campus.technion.ac.il>",
 ]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.12"
+numpy = "^2.1"
+pandas = "^2.3.1"
+torch = "^2.7.1"
+torchvision = "^0.22.1"
+matplotlib = "^3.10.3"
+scikit-learn = "^1.7.1"
+tensorflow = "^2.19.0"
 
 
 
