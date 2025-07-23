@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "sentiment analysis"
+version = "0.1.0"
+description = "Final project of course Deep Learning (00460217), Technion, Spring semester 2025."
+authors = [
+    {name = "Gabriel Uram", email="gabriel.uram@campus.technion.ac.il"},
+    {name = "Ori Razon", email="ori.razon@campus.technion.ac.il"},
+]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.12"
+
+
+
+[tool.poetry.group.dev.dependencies]
+
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
