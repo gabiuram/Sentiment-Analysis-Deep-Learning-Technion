@@ -26,4 +26,4 @@ Thumbs.db
 *.pth
 
 #Glove
-./*/glove.6B/
+*/glove.6B/
