@@ -23,7 +23,7 @@ Thumbs.db
 *.lock
 
 # Models (large files)
-./models/
-./*/*.pth
-./*.pth
+*.pth
+
+#Glove
 ./*/glove.6B/
