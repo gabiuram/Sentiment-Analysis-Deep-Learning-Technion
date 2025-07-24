@@ -104,10 +104,14 @@ class Training:
         print(f"model size: {size_all_mb:.2f} MB")
 
     @staticmethod
-    def evaluate_saved_model(model_path,test_loader, test_data, plot_name):
+    def evaluate_saved_model(model_path,test_loader, test_data, plot_name, LLM=False, classifier=None):
         labels = np.array(test_data[ATTRIBUTES])
         # Load the best model state dictionary
-        model = torch.load(model_path, weights_only = False)
+        if LLM:
+            model = classifier()
+            model.load_state_dict(torch.load(model_path, weights_only = False,  map_location=torch.device("cpu")))
+        else:
+            model = torch.load(model_path, weights_only = False,  map_location=torch.device("cpu"))
 
         # Set the model to evaluation mode
         model.eval()

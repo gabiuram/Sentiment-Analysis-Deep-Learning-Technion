@@ -366,6 +366,7 @@ def train_model(model, train_loader, val_loader, test_loader, test_data, num_epo
 
   plt.tight_layout()
   plt.show()
+  plt.savefig("Final.png")
 
 
 

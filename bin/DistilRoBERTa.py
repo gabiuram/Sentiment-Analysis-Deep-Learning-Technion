@@ -172,6 +172,7 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
 
   plt.tight_layout()
   plt.show()
+  plt.savefig("Final.png")
 
 
 if __name__ == '__main__':
@@ -208,4 +209,4 @@ if __name__ == '__main__':
     labels = np.array(test_data[ATTRIBUTES])
 
     model_path = 'best_model.pth'
-    Training.evaluate_saved_model(model_path, test_loader, test_data, "RoBERTa - Full Fine-Tuning\nROC-AUC Score on Test Set")
+    Training.evaluate_saved_model(model_path, test_loader, test_data, "RoBERTa - Full Fine-Tuning\nROC-AUC Score on Test Set", True, UCC_classifier)
