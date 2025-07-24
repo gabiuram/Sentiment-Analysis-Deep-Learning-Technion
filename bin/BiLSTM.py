@@ -391,7 +391,7 @@ def train_model(model, train_loader, val_loader, test_loader, test_data, num_epo
 def evaluate_saved_model(model_path,test_loader, test_data):
     labels = np.array(test_data[ATTRIBUTES])
     # Load the best model state dictionary
-    model = torch.load(model_path, weights_only = False, map_location=torch.device('cpu'))
+    model = torch.load(model_path, weights_only = False)
 
     # Set the model to evaluation mode
     model.eval()
@@ -427,9 +427,9 @@ def evaluate_saved_model(model_path,test_loader, test_data):
 
 if __name__ == '__main__':
     download_glove()
-    train_data = pd.read_csv('../data/train.csv')
-    test_data = pd.read_csv('../data/test.csv')
-    val_data = pd.read_csv('../data/val.csv')
+    train_data = pd.read_csv('data/train.csv')
+    test_data = pd.read_csv('data/test.csv')
+    val_data = pd.read_csv('data/val.csv')
 
     balanced_train_data = Training.preprocess_train(train_data, HEALTHY_SAMPLE, attributes_healthy, ATTRIBUTES_MERGED)
 
