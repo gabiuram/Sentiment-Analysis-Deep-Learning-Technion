@@ -16,6 +16,6 @@ We use poetry as our package manager, so run the following commands:
 And this will install all dependencies
 
 ## Presentation:
-Check our presentation on [YouTube][https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ&start_radio=1]
+Check our presentation on [YouTube](https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ&start_radio=1)
 
 
