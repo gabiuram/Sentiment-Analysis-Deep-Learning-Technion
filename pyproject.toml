@@ -21,6 +21,7 @@ tensorflow = "^2.19.0"
 notebook = "^7.4.4"
 transformers = "^4.53.3"
 tensorflow-keras = "^0.1"
+peft = "^0.16.0"
 
 
 
