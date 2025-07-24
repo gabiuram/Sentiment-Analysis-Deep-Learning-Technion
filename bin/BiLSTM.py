@@ -447,6 +447,6 @@ if __name__ == '__main__':
     train_model(model, train_loader, val_loader, test_loader, test_data)
     print("Done Training")
 
-    model_path = '/Users/gabrieluram/Desktop/Sentiment Analysis/models/BiLSTM_best_model.pth'
+    model_path = 'best_model.pth'
     evaluate_saved_model(model_path, test_loader, test_data)
 
