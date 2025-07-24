@@ -8,22 +8,17 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import urllib.request
 import zipfile
-from src.utils import Training
+
 import torch
 import torch.nn as nn
 from sklearn import metrics
 
+from src.utils import Training
+from src.datasets import UCC_Dataset_LSTM, TOKENIZER_LSTM
 
 ATTRIBUTES = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
     'hostile', 'sarcastic', 'unhealthy'] #the goal is to detect unhealthy comments, so we will use the unhealthy attribute
 HEALTHY_SAMPLE = 11500
-TOKENIZER = Tokenizer(
-    oov_token='<UNK>',
-    filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
-    lower=True,
-    split=' ',
-    char_level=False
-)
 NUM_EPOCHS = 21
 LEARNING_RATE = 5e-5
 WEIGHT_DECAY = 1e-2
@@ -230,7 +225,7 @@ def getEmbeddingMatrix(): # Create a GloVe embedding matrix, dim = 200
           word = values[0]
           coefs = np.asarray(values[1:], dtype='float32')
           embeddings_index[word] = coefs
-  word_index = TOKENIZER.word_index
+  word_index = TOKENIZER_LSTM.word_index
   num_words = len(word_index) + 1
   embedding_matrix = np.zeros((num_words, 200))
   for word, i in word_index.items():
@@ -392,17 +387,6 @@ def train_model(model, train_loader, val_loader, test_loader, test_data, num_epo
   plt.tight_layout()
   plt.show()
 
-def print_model_size(model):
-    num_trainable_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
-    param_size = 0
-    for param in model.parameters():
-        param_size += param.nelement() * param.element_size()
-    buffer_size = 0
-    for buffer in model.buffers():
-        buffer_size += buffer.nelement() * buffer.element_size()
-    size_all_mb = (param_size + buffer_size) / 1024 ** 2
-    print(f"model size: {size_all_mb:.2f} MB")
-
 
 #it's important that the model saved is the *entire* model, not just the state dict
 #(this is because of fine-tuned word embeddings which aren't in the weights)
@@ -455,13 +439,14 @@ if __name__ == '__main__':
     # calculate the model size on disk
     dummy_model = UCC_classifier()
 
-    print_model_size(dummy_model)
+    Training.print_model_size(dummy_model)
 
-    train_ds, val_ds, train_loader, val_loader, test_loader = load_data(balanced_train_data, val_data, test_data, BATCH_SIZE)
+    train_ds, val_ds, train_loader, val_loader, test_loader = Training.load_data(balanced_train_data, val_data, test_data, BATCH_SIZE, UCC_Dataset_LSTM)
+
     model = UCC_classifier()
 
     print("Start Training...")
-    #train_model(model, train_loader, val_loader, test_loader, test_data)
+    train_model(model, train_loader, val_loader, test_loader, test_data)
     print("Done Training")
 
     model_path = '/Users/gabrieluram/Desktop/Sentiment Analysis/models/BiLSTM_best_model.pth'

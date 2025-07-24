@@ -73,10 +73,10 @@ class UCC_classifier(nn.Module):
     x = self.fc(x)
     return x
 
-def print_model_size():
+def print_model_size(model):
   # calculate the model size on disk
   dummy_model = UCC_classifier()
-  num_trainable_params = sum([p.numel() for p in dummy_model.parameters() if p.requires_grad])
+  num_trainable_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
   param_size = 0
   for param in dummy_model.parameters():
     param_size += param.nelement() * param.element_size()

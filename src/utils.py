@@ -1,8 +1,9 @@
+"""Functions used for multiple models."""
 import pandas as pd
 import torch
 import matplotlib.pyplot as plt
 
-from src.datasets import UCC_Dataset_Transformers, UCC_Dataset_LSTM
+from src.datasets import UCC_Dataset_BERT, UCC_Dataset_LSTM
 
 
 class Training:
@@ -44,19 +45,19 @@ class Training:
       return balanced_train_data
 
     @staticmethod
-    def load_data(train_data, val_data, test_data, batch_size, dataset_class, fit_tokenizer):
+    def load_data(train_data, val_data, test_data, batch_size, dataset_class):
         # Add the 'unhealthy' column to val_data
         val_data['unhealthy'] = 1 - val_data['healthy']
         test_data['unhealthy'] = 1 - test_data['healthy']
 
-        if dataset_class.__name__ == "UCC_Dataset_Transformers":
-            train_ds = UCC_Dataset_Transformers(train_data)
-            val_ds = UCC_Dataset_Transformers(val_data)
-            test_ds = UCC_Dataset_Transformers(test_data)
+        if dataset_class.__name__ == "UCC_Dataset_BERT":
+            train_ds = UCC_Dataset_BERT(train_data)
+            val_ds = UCC_Dataset_BERT(val_data)
+            test_ds = UCC_Dataset_BERT(test_data)
         else:
             train_ds = UCC_Dataset_LSTM(train_data)
-            val_ds = UCC_Dataset_LSTM(val_data, fit_tokenizer=fit_tokenizer)
-            test_ds = UCC_Dataset_LSTM(test_data, fit_tokenizer=fit_tokenizer)
+            val_ds = UCC_Dataset_LSTM(val_data, fit_tokenizer=False)
+            test_ds = UCC_Dataset_LSTM(test_data, fit_tokenizer=False)
 
 
         train_loader = torch.utils.data.DataLoader(
@@ -84,3 +85,15 @@ class Training:
         )
 
         return train_ds, val_ds, train_loader, val_loader, test_loader
+
+    @staticmethod
+    def print_model_size(model):
+        param_size = 0
+        for param in model.parameters():
+            param_size += param.nelement() * param.element_size()
+        buffer_size = 0
+        for buffer in model.buffers():
+            buffer_size += buffer.nelement() * buffer.element_size()
+        size_all_mb = (param_size + buffer_size) / 1024 ** 2
+        print(f"model size: {size_all_mb:.2f} MB")
+

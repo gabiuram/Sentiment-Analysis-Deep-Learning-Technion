@@ -8,18 +8,26 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import urllib.request
 import zipfile
-from src.utils import Training
 import torch
+from transformers import AutoTokenizer, AutoModel, get_cosine_schedule_with_warmup #hugging face imports
 import torch.nn as nn
 from sklearn import metrics
 
-
+TOKENIZER_LSTM = Tokenizer(
+    oov_token='<UNK>',
+    filters='!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~\t\n',
+    lower=True,
+    split=' ',
+    char_level=False
+)
+ATTRIBUTES = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
+    'hostile', 'sarcastic', 'unhealthy']
 class UCC_Dataset_LSTM(torch.utils.data.Dataset):
     def __init__(self, data, max_length=512, vocab_size=10000, fit_tokenizer=True):
         self.data = data.copy()
         self.max_length = max_length
         self.vocab_size = vocab_size
-        self.tokenizer = TOKENIZER
+        self.tokenizer = TOKENIZER_LSTM
         self.attributes = ATTRIBUTES
 
         # Extract texts and labels
@@ -71,13 +79,16 @@ class UCC_Dataset_LSTM(torch.utils.data.Dataset):
             'labels': labels,
         }
 
+TOKENIZER_PATH = "roberta-base"
+TOKENIZER_BERT = AutoTokenizer.from_pretrained(TOKENIZER_PATH)
+MAX_TOKEN_LEN_BERT = 128
 
-class UCC_Dataset_Transformers(torch.utils.data.Dataset):
+class UCC_Dataset_BERT(torch.utils.data.Dataset):
   def __init__(self, data):
     self.data = data
-    self.tokenizer = TOKENIZER
+    self.tokenizer = TOKENIZER_BERT
     self.attributes = ATTRIBUTES
-    self.max_token_len = MAX_TOKEN_LEN
+    self.max_token_len = MAX_TOKEN_LEN_BERT
 
   def __len__(self):
     return len(self.data)
