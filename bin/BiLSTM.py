@@ -11,11 +11,10 @@ import torch
 import torch.nn as nn
 from sklearn import metrics
 
-from sentiment_analysis.utils import Training
+from sentiment_analysis.utils import Training, ATTRIBUTES, ATTRIBUTES_MERGED
 from sentiment_analysis.datasets import UCC_Dataset_LSTM, TOKENIZER_LSTM
 
-ATTRIBUTES = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
-    'hostile', 'sarcastic', 'unhealthy'] #the goal is to detect unhealthy comments, so we will use the unhealthy attribute
+
 HEALTHY_SAMPLE = 11500
 NUM_EPOCHS = 21
 LEARNING_RATE = 5e-5
@@ -24,8 +23,7 @@ BATCH_SIZE = 16
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-ATTRIBUTES_MERGED = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
-    'hostile', 'sarcastic', 'unhealthy', 'healthy']
+
 
 attributes_healthy = [
     'antagonize' , 'condescending', 'dismissive', 'generalisation',
@@ -239,22 +237,6 @@ def getEmbeddingMatrix(): # Create a GloVe embedding matrix, dim = 200
   # Convert the numpy embedding matrix to a PyTorch tensor
   return torch.from_numpy(embedding_matrix).float()
 
-def evaluate_model(model, val_loader, criterion, device):
-  model.eval()
-  val_loss = 0
-  with torch.no_grad():
-      for batch_data in val_loader:
-          comments = batch_data['input_ids'].to(device)
-          attention_mask = batch_data['attention_mask'].to(device)
-          attributes = batch_data['labels'].to(device)
-
-          outputs = model(comments, attention_mask)
-          loss = criterion(outputs, attributes)
-          val_loss += loss.item() * comments.size(0)
-
-  val_loss /= len(val_loader.dataset)
-  return val_loss
-
 def train_model(model, train_loader, val_loader, test_loader, test_data, num_epochs = NUM_EPOCHS):
 
   device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -317,7 +299,7 @@ def train_model(model, train_loader, val_loader, test_loader, test_data, num_epo
       running_loss /= len(train_loader)
       train_loss_per_epoch.append(running_loss)
 
-      val_loss = evaluate_model(model, val_loader, criterion, device)
+      val_loss = Training.evaluate_model(model, val_loader, criterion, device)
 
       val_loss_per_epoch.append(val_loss)
 
@@ -386,44 +368,6 @@ def train_model(model, train_loader, val_loader, test_loader, test_data, num_epo
   plt.show()
 
 
-#it's important that the model saved is the *entire* model, not just the state dict
-#(this is because of fine-tuned word embeddings which aren't in the weights)
-def evaluate_saved_model(model_path,test_loader, test_data):
-    labels = np.array(test_data[ATTRIBUTES])
-    # Load the best model state dictionary
-    model = torch.load(model_path, weights_only = False)
-
-    # Set the model to evaluation mode
-    model.eval()
-
-    predictions = []
-    model.to(device)
-
-    with torch.no_grad():
-        for batch_data in test_loader:
-            comments = batch_data['input_ids'].to(device)
-            attention_mask = batch_data['attention_mask'].to(device)
-
-            outputs = model(comments, attention_mask)
-            predictions.extend(outputs.cpu().numpy())
-
-    predictions = np.array(predictions)
-
-    print("Printing Results")
-
-    plt.figure(figsize=(15, 8))
-    for i, attribute in enumerate(ATTRIBUTES):
-      fpr, tpr, _ = metrics.roc_curve(
-          labels[:,i].astype(int), predictions[:, i])
-      auc = metrics.roc_auc_score(
-          labels[:,i].astype(int), predictions[:, i])
-      plt.plot(fpr, tpr, label='%s %g' % (attribute, auc))
-    plt.xlabel('False Positive Rate', fontsize=12, fontweight='bold')
-    plt.ylabel('True Positive Rate', fontsize=12, fontweight='bold')
-    plt.legend(loc='lower right')
-    plt.title("BiLSTM + Attention\nROC-AUC Score on Test Set", fontsize=14, fontweight='bold')
-    plt.show()
-
 
 if __name__ == '__main__':
     download_glove()
@@ -448,5 +392,5 @@ if __name__ == '__main__':
     print("Done Training")
 
     model_path = 'best_model.pth'
-    evaluate_saved_model(model_path, test_loader, test_data)
+    Training.evaluate_saved_model(model_path, test_loader, test_data, "BiLSTM + Attention\nROC-AUC Score on Test Set")
 

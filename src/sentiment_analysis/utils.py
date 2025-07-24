@@ -1,10 +1,16 @@
 """Functions used for multiple models."""
+import numpy as np
 import pandas as pd
 import torch
 import matplotlib.pyplot as plt
-
+from sklearn import metrics
 from sentiment_analysis.datasets import UCC_Dataset_BERT, UCC_Dataset_LSTM
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+ATTRIBUTES = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
+    'hostile', 'sarcastic', 'unhealthy']
+ATTRIBUTES_MERGED = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
+    'hostile', 'sarcastic', 'unhealthy', 'healthy']
 
 class Training:
 
@@ -97,3 +103,56 @@ class Training:
         size_all_mb = (param_size + buffer_size) / 1024 ** 2
         print(f"model size: {size_all_mb:.2f} MB")
 
+    @staticmethod
+    def evaluate_saved_model(model_path,test_loader, test_data, plot_name):
+        labels = np.array(test_data[ATTRIBUTES])
+        # Load the best model state dictionary
+        model = torch.load(model_path, weights_only = False)
+
+        # Set the model to evaluation mode
+        model.eval()
+
+        predictions = []
+        model.to(device)
+
+        with torch.no_grad():
+            for batch_data in test_loader:
+                comments = batch_data['input_ids'].to(device)
+                attention_mask = batch_data['attention_mask'].to(device)
+
+                outputs = model(comments, attention_mask)
+                predictions.extend(outputs.cpu().numpy())
+
+        predictions = np.array(predictions)
+
+        print("Printing Results")
+
+        plt.figure(figsize=(15, 8))
+        for i, attribute in enumerate(ATTRIBUTES):
+            fpr, tpr, _ = metrics.roc_curve(
+                labels[:,i].astype(int), predictions[:, i])
+            auc = metrics.roc_auc_score(
+                labels[:,i].astype(int), predictions[:, i])
+            plt.plot(fpr, tpr, label='%s %g' % (attribute, auc))
+        plt.xlabel('False Positive Rate', fontsize=12, fontweight='bold')
+        plt.ylabel('True Positive Rate', fontsize=12, fontweight='bold')
+        plt.legend(loc='lower right')
+        plt.title(plot_name, fontsize=14, fontweight='bold')
+        plt.show()
+
+    @staticmethod
+    def evaluate_model(model, val_loader, criterion, device):
+        model.eval()
+        val_loss = 0
+        with torch.no_grad():
+            for batch_data in val_loader:
+                comments = batch_data['input_ids'].to(device)
+                attention_mask = batch_data['attention_mask'].to(device)
+                attributes = batch_data['labels'].to(device)
+
+                outputs = model(comments, attention_mask)
+                loss = criterion(outputs, attributes)
+                val_loss += loss.item() * comments.size(0)
+
+        val_loss /= len(val_loader.dataset)
+        return val_loss

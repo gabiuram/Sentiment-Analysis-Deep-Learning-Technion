@@ -4,16 +4,14 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
-from transformers import AutoTokenizer, AutoModel, get_cosine_schedule_with_warmup #hugging face imports
-from sentiment_analysis.utils import Training
+from transformers import AutoTokenizer, AutoModel #hugging face imports
+from sklearn import metrics
+from sentiment_analysis.datasets import UCC_Dataset_BERT
+from sentiment_analysis.utils import Training, ATTRIBUTES, ATTRIBUTES_MERGED
 
 TOKENIZER_PATH = "roberta-base"
 TOKENIZER = AutoTokenizer.from_pretrained(TOKENIZER_PATH)
 MODEL_PATH = 'distilroberta-base'
-ATTRIBUTES_MERGED = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
-    'hostile', 'sarcastic', 'unhealthy', 'healthy']
-ATTRIBUTES = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
-    'hostile', 'sarcastic', 'unhealthy'] #the goal is to detect unhealthy comments, so we will use the unhealthy attribute
 HEALTHY_SAMPLE = 5000
 MAX_TOKEN_LEN = 128
 BATCH_SIZE = 256
@@ -26,31 +24,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 attributes = [
     'antagonize' , 'condescending', 'dismissive', 'generalisation',
     'hostile', 'sarcastic', 'healthy']
-
-train_data = pd.read_csv('data/train.csv')
-test_data = pd.read_csv('data/test.csv')
-val_data = pd.read_csv('data/val.csv')
-
-train_data[attributes].sum().plot(kind='bar')
-plt.title('Training Samples per Attribute')
-plt.ylabel('Count')
-plt.xticks(rotation=45)
-plt.tight_layout()
-plt.show()
-
-healthy_samples = train_data[train_data['healthy'] == 1]
-unhealthy_samples = train_data[train_data['healthy'] == 0]
-
-print(f"Number of healthy training samples before preprocessing: {len(healthy_samples)}")
-print(f"Number of unhealthy training samples before preprocessing: {len(unhealthy_samples)}")
-
-balanced_train_data = Training.preprocess_train(train_data, HEALTHY_SAMPLE, attributes, ATTRIBUTES_MERGED)
-healthy_samples = balanced_train_data[balanced_train_data['healthy'] == 1]
-unhealthy_samples = balanced_train_data[balanced_train_data['unhealthy'] == 1]
-
-print(f"Number of healthy training samples after preprocessing: {len(healthy_samples)}")
-print(f"Number of unhealthy training samples after preprocessing: {len(unhealthy_samples)}")
-
 
 class UCC_classifier(nn.Module):
   def __init__(self):
@@ -73,34 +46,6 @@ class UCC_classifier(nn.Module):
     x = self.fc(x)
     return x
 
-def print_model_size(model):
-  # calculate the model size on disk
-  dummy_model = UCC_classifier()
-  num_trainable_params = sum([p.numel() for p in model.parameters() if p.requires_grad])
-  param_size = 0
-  for param in dummy_model.parameters():
-    param_size += param.nelement() * param.element_size()
-  buffer_size = 0
-  for buffer in dummy_model.buffers():
-    buffer_size += buffer.nelement() * buffer.element_size()
-  size_all_mb = (param_size + buffer_size) / 1024 ** 2
-  print(f"model size: {size_all_mb:.2f} MB")
-
-def evaluate_model(model, val_loader, criterion, device):
-  model.eval()
-  val_loss = 0
-  with torch.no_grad():
-      for batch_data in val_loader:
-          comments = batch_data['input_ids'].to(device)
-          attention_mask = batch_data['attention_mask'].to(device)
-          attributes = batch_data['attributes_labels'].to(device)
-
-          outputs = model(comments, attention_mask)
-          loss = criterion(outputs, attributes)
-          val_loss += loss.item() * comments.size(0)
-
-  val_loss /= len(val_loader.dataset)
-  return val_loss
 
 def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
   best_auc = 0
@@ -147,7 +92,7 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
       for batch_data in train_loader:
           inputs = batch_data['input_ids'].to(device)
           attention_mask = batch_data['attention_mask'].to(device)
-          labels = batch_data['attributes_labels'].to(device)
+          labels = batch_data['labels'].to(device)
           # forward + backward + optimize
           outputs = model(inputs, attention_mask)  # forward pass
           loss = criterion(outputs, labels)  # calculate the loss
@@ -163,7 +108,7 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
       running_loss /= len(train_loader)
       train_loss_per_epoch.append(running_loss)
 
-      val_loss = evaluate_model(model, val_loader, criterion, device)
+      val_loss = Training.evaluate_model(model, val_loader, criterion, device)
 
       val_loss_per_epoch.append(val_loss)
 
@@ -184,7 +129,6 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
       labels = np.array(test_data[ATTRIBUTES])
 
       # Calculate AUC for each attribute and then the average
-      from sklearn import metrics
       auc_scores = []
       for i in range(len(ATTRIBUTES)):
           try:
@@ -229,41 +173,39 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
   plt.tight_layout()
   plt.show()
 
-model = UCC_classifier()
-train_ds, val_ds, train_loader, val_loader, test_loader = load_data(balanced_train_data, val_data, test_data, BATCH_SIZE)
 
-train_model(model, train_loader, val_loader)
+if __name__ == '__main__':
 
-labels = np.array(test_data[ATTRIBUTES])
+    train_data = pd.read_csv('data/train.csv')
+    test_data = pd.read_csv('data/test.csv')
+    val_data = pd.read_csv('data/val.csv')
 
-# Load the best model state dictionary
-model.load_state_dict(torch.load('best_model.pth'))
+    train_data[attributes].sum().plot(kind='bar')
+    plt.title('Training Samples per Attribute')
+    plt.ylabel('Count')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
 
-# Set the model to evaluation mode
-model.eval()
+    healthy_samples = train_data[train_data['healthy'] == 1]
+    unhealthy_samples = train_data[train_data['healthy'] == 0]
 
-predictions = []
-model.to(device)
+    print(f"Number of healthy training samples before preprocessing: {len(healthy_samples)}")
+    print(f"Number of unhealthy training samples before preprocessing: {len(unhealthy_samples)}")
 
-with torch.no_grad():
-    for batch_data in test_loader:
-        comments = batch_data['input_ids'].to(device)
-        attention_mask = batch_data['attention_mask'].to(device)
+    balanced_train_data = Training.preprocess_train(train_data, HEALTHY_SAMPLE, attributes, ATTRIBUTES_MERGED)
+    healthy_samples = balanced_train_data[balanced_train_data['healthy'] == 1]
+    unhealthy_samples = balanced_train_data[balanced_train_data['unhealthy'] == 1]
 
-        outputs = model(comments, attention_mask)
-        predictions.extend(outputs.cpu().numpy())
+    print(f"Number of healthy training samples after preprocessing: {len(healthy_samples)}")
+    print(f"Number of unhealthy training samples after preprocessing: {len(unhealthy_samples)}")
 
-predictions = np.array(predictions)
+    model = UCC_classifier()
+    train_ds, val_ds, train_loader, val_loader, test_loader = Training.load_data(balanced_train_data, val_data, test_data, BATCH_SIZE, UCC_Dataset_BERT)
 
-from sklearn import metrics
-plt.figure(figsize=(15, 8))
-for i, attribute in enumerate(ATTRIBUTES):
-  fpr, tpr, _ = metrics.roc_curve(
-      labels[:,i].astype(int), predictions[:, i])
-  auc = metrics.roc_auc_score(
-      labels[:,i].astype(int), predictions[:, i])
-  plt.plot(fpr, tpr, label='%s %g' % (attribute, auc))
-plt.xlabel('False Positive Rate', fontsize=12, fontweight='bold')
-plt.ylabel('True Positive Rate', fontsize=12, fontweight='bold')
-plt.legend(loc='lower right')
-plt.title("RoBERTa - Full Fine-Tuning\nROC-AUC Score on Test Set", fontsize=14, fontweight='bold')
+    train_model(model, train_loader, val_loader)
+
+    labels = np.array(test_data[ATTRIBUTES])
+
+    model_path = 'best_model.pth'
+    Training.evaluate_saved_model(model_path, test_loader, test_data, "RoBERTa - Full Fine-Tuning\nROC-AUC Score on Test Set")

@@ -87,7 +87,7 @@ class UCC_Dataset_BERT(torch.utils.data.Dataset):
   def __getitem__(self, idx):
     comment = str(self.data.iloc[idx].comment)
     # Explicitly cast to float to ensure numeric type
-    attributes_labels = torch.tensor(self.data.loc[idx, self.attributes].values.astype(float), dtype=torch.float)
+    labels = torch.tensor(self.data.loc[idx, self.attributes].values.astype(float), dtype=torch.float)
 #https://huggingface.co/docs/transformers/internal/tokenization_utils#transformers.tokenization_utils_base.PreTrainedTokenizerBase.batch_encode_plus:~:text=tokenize(text)).-,encode_plus,-%3C
     tokenized_comment = self.tokenizer.encode_plus(
         comment,
@@ -100,6 +100,6 @@ class UCC_Dataset_BERT(torch.utils.data.Dataset):
     return {
         'input_ids': tokenized_comment['input_ids'].flatten(),
         'attention_mask': tokenized_comment['attention_mask'].flatten(),
-        'attributes_labels': attributes_labels
+        'labels': labels
     }
 
