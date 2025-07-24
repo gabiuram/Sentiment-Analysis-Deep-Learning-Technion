@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "sentiment analysis"
+name = "sentiment_analysis"
 version = "0.1.0"
 description = "Final project of course Deep Learning (00460217), Technion, Spring semester 2025."
 authors = [
@@ -7,6 +7,7 @@ authors = [
     "Ori Razon <ori.razon@campus.technion.ac.il>",
 ]
 readme = "README.md"
+packages = [{include = "sentiment_analysis", from="src"}]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.12"

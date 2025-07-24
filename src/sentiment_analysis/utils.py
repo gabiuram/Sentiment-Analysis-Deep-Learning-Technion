@@ -3,7 +3,7 @@ import pandas as pd
 import torch
 import matplotlib.pyplot as plt
 
-from src.datasets import UCC_Dataset_BERT, UCC_Dataset_LSTM
+from src.sentiment_analysis.datasets import UCC_Dataset_BERT, UCC_Dataset_LSTM
 
 
 class Training:
