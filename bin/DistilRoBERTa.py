@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from transformers import AutoTokenizer, AutoModel, get_cosine_schedule_with_warmup #hugging face imports
-from src.utils import Training
+from sentiment_analysis.utils import Training
 
 TOKENIZER_PATH = "roberta-base"
 TOKENIZER = AutoTokenizer.from_pretrained(TOKENIZER_PATH)

@@ -4,8 +4,6 @@ import numpy as np
 import pandas as pd
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-from tensorflow.keras.preprocessing.text import Tokenizer
-from tensorflow.keras.preprocessing.sequence import pad_sequences
 import urllib.request
 import zipfile
 
@@ -13,8 +11,8 @@ import torch
 import torch.nn as nn
 from sklearn import metrics
 
-from src.utils import Training
-from src.datasets import UCC_Dataset_LSTM, TOKENIZER_LSTM
+from sentiment_analysis.utils import Training
+from sentiment_analysis.datasets import UCC_Dataset_LSTM, TOKENIZER_LSTM
 
 ATTRIBUTES = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
     'hostile', 'sarcastic', 'unhealthy'] #the goal is to detect unhealthy comments, so we will use the unhealthy attribute

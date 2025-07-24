@@ -1,17 +1,8 @@
-import os
-import time
 import numpy as np
-import pandas as pd
-import torch.nn.functional as F
-import matplotlib.pyplot as plt
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-import urllib.request
-import zipfile
 import torch
-from transformers import AutoTokenizer, AutoModel, get_cosine_schedule_with_warmup #hugging face imports
-import torch.nn as nn
-from sklearn import metrics
+from transformers import AutoTokenizer
 
 TOKENIZER_LSTM = Tokenizer(
     oov_token='<UNK>',
