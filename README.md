@@ -20,8 +20,7 @@ And this will install all dependencies
 2. ```%cd Sentiment-Analysis-Deep-Learning-Technion```
 3. ```!pip install poetry```
 4. ```!poetry config virtualenvs.create false```
-5. ```!poetry install --no-root```
-6. ```!poetry install```
+5. ```!poetry install```
 
 ## Presentation:
 Check our presentation on [YouTube](https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ&start_radio=1)
