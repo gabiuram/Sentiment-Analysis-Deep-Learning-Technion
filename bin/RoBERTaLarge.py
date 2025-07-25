@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
-from transformers import AutoTokenizer, AutoModel, AutoConfig
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoConfig
 from sklearn import metrics
 from peft import get_peft_model, LoraConfig, TaskType
 from sentiment_analysis.datasets import UCC_Dataset_BERT
@@ -29,8 +29,8 @@ attributes = [
 class UCC_classifier(nn.Module):
   def __init__(self):
     super(UCC_classifier, self).__init__()
-    config = AutoConfig.from_pretrained(MODEL_PATH)
-    base_model = AutoModel.from_pretrained(MODEL_PATH, config=config)
+    config = AutoConfig.from_pretrained(MODEL_PATH, num_labels=len(ATTRIBUTES), problem_type="multi_label_classification")
+    base_model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH, config=config)
 
     lora_config = LoraConfig(
         r=8,
@@ -60,7 +60,7 @@ class UCC_classifier(nn.Module):
       param.requires_grad = True
 
   def forward(self, input_ids, attention_mask):
-    x = self.roberta(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+    x = self.roberta.roberta(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
     x = torch.mean(x, 1)
     x = self.dropout(x)
     x = self.fc(x)
