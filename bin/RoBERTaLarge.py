@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoConfig
+from transformers import AutoTokenizer, AutoModel, AutoConfig
 from sklearn import metrics
 from peft import get_peft_model, LoraConfig, TaskType
 from sentiment_analysis.datasets import UCC_Dataset_BERT
@@ -14,10 +14,10 @@ TOKENIZER_PATH = "roberta-large"
 TOKENIZER = AutoTokenizer.from_pretrained(TOKENIZER_PATH)
 MODEL_PATH = 'roberta-large'
 HEALTHY_SAMPLE = 5000
-MAX_TOKEN_LEN = 128
+MAX_TOKEN_LEN = 64
 BATCH_SIZE = 8
 NUM_EPOCHS = 21
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 5e-4
 WEIGHT_DECAY = 0.001
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -29,8 +29,8 @@ attributes = [
 class UCC_classifier(nn.Module):
   def __init__(self):
     super(UCC_classifier, self).__init__()
-    config = AutoConfig.from_pretrained(MODEL_PATH, num_labels=len(ATTRIBUTES))
-    base_model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH, config=config)
+    config = AutoConfig.from_pretrained(MODEL_PATH)
+    base_model = AutoModel.from_pretrained(MODEL_PATH, config=config)
 
     lora_config = LoraConfig(
         r=8,
@@ -42,17 +42,16 @@ class UCC_classifier(nn.Module):
     )
 
     self.roberta = get_peft_model(base_model, lora_config)
-    self.dropout = nn.Dropout(0.4)
+    self.dropout = nn.Dropout(0.3)
     self.fc = nn.Sequential(
-        nn.Linear(config.hidden_size, config.hidden_size),
+        nn.Linear(config.hidden_size, config.hidden_size // 2),
         nn.ReLU(),
-        nn.Dropout(0.4),
-        nn.Linear(config.hidden_size, len(ATTRIBUTES))
+        nn.Dropout(0.3),
+        nn.Linear(config.hidden_size // 2, len(ATTRIBUTES))
     )
     nn.init.xavier_uniform_(self.fc[0].weight)
     nn.init.xavier_uniform_(self.fc[-1].weight)
 
-    # Freeze everything except LoRA + fc layer
     for name, param in self.roberta.named_parameters():
       if 'lora' not in name:
         param.requires_grad = False
@@ -61,7 +60,7 @@ class UCC_classifier(nn.Module):
       param.requires_grad = True
 
   def forward(self, input_ids, attention_mask):
-    x = self.roberta.roberta(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+    x = self.roberta(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
     x = torch.mean(x, 1)
     x = self.dropout(x)
     x = self.fc(x)
@@ -82,7 +81,7 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
     max_lr=LEARNING_RATE,
     steps_per_epoch=len(train_loader),
     epochs=NUM_EPOCHS,
-    pct_start=0.20,
+    pct_start=0.05,
     anneal_strategy='cos',
     div_factor=10.0,
     final_div_factor=100
@@ -122,6 +121,7 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
 
       model.eval()
       predictions = []
+      model.to(device)
 
       with torch.no_grad():
           for batch_data in test_loader:
