@@ -17,7 +17,7 @@ HEALTHY_SAMPLE = 5000
 MAX_TOKEN_LEN = 128
 BATCH_SIZE = 8
 NUM_EPOCHS = 21
-LEARNING_RATE = 3e-5
+LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 0.001
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -52,7 +52,13 @@ class UCC_classifier(nn.Module):
     nn.init.xavier_uniform_(self.fc[0].weight)
     nn.init.xavier_uniform_(self.fc[-1].weight)
 
-    self.roberta.gradient_checkpointing_enable()
+    # Freeze everything except LoRA + fc layer
+    for name, param in self.roberta.named_parameters():
+      if 'lora' not in name:
+        param.requires_grad = False
+
+    for param in self.fc.parameters():
+      param.requires_grad = True
 
   def forward(self, input_ids, attention_mask):
     x = self.roberta.roberta(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
