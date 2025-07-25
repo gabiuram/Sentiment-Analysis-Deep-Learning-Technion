@@ -15,7 +15,7 @@ TOKENIZER = AutoTokenizer.from_pretrained(TOKENIZER_PATH)
 MODEL_PATH = 'roberta-large'
 HEALTHY_SAMPLE = 5000
 MAX_TOKEN_LEN = 128
-BATCH_SIZE = 256
+BATCH_SIZE = 8
 NUM_EPOCHS = 21
 LEARNING_RATE = 3e-5
 WEIGHT_DECAY = 0.001
@@ -51,6 +51,8 @@ class UCC_classifier(nn.Module):
     )
     nn.init.xavier_uniform_(self.fc[0].weight)
     nn.init.xavier_uniform_(self.fc[-1].weight)
+
+    self.roberta.gradient_checkpointing_enable()
 
   def forward(self, input_ids, attention_mask):
     x = self.roberta.roberta(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
@@ -114,7 +116,6 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
 
       model.eval()
       predictions = []
-      model.to(device)
 
       with torch.no_grad():
           for batch_data in test_loader:
@@ -153,6 +154,8 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
       log += "Epoch Time: {:.2f} secs".format(epoch_time)
       print(log)
 
+      torch.cuda.empty_cache()
+
   print('==> Finished Training ...')
 
   plt.figure(figsize=(8, 5))
@@ -163,8 +166,8 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
   plt.title('Loss Curve')
   plt.legend()
   plt.tight_layout()
-  plt.show()
   plt.savefig("Final.png")
+  plt.show()
 
 if __name__ == '__main__':
     train_data = pd.read_csv('data/train.csv')
@@ -192,9 +195,22 @@ if __name__ == '__main__':
     print(f"Number of unhealthy training samples after preprocessing: {len(unhealthy_samples)}")
 
     model = UCC_classifier()
-    train_ds, val_ds, train_loader, val_loader, test_loader = Training.load_data(balanced_train_data, val_data, test_data, BATCH_SIZE, UCC_Dataset_BERT)
+
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total Parameters: {total_params:,}")
+    print(f"Trainable Parameters: {trainable_params:,}")
+
+    train_ds, val_ds, train_loader, val_loader, test_loader = Training.load_data(
+        balanced_train_data, val_data, test_data, BATCH_SIZE, UCC_Dataset_BERT
+    )
+
     train_model(model, train_loader, val_loader)
 
     labels = np.array(test_data[ATTRIBUTES])
     model_path = 'best_model.pth'
-    Training.evaluate_saved_model(model_path, test_loader, test_data, "RoBERTa-large + LoRA\nROC-AUC Score on Test Set", True, UCC_classifier)
+    Training.evaluate_saved_model(
+        model_path, test_loader, test_data,
+        "RoBERTa-large + LoRA\nROC-AUC Score on Test Set",
+        True, UCC_classifier
+    )
