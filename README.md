@@ -12,7 +12,8 @@ The repository contains 4 folders of interest:\
 ## Set up the environment locally:
 We use poetry as our package manager, so run the following commands:
 1. ```pip install poetry```
-2. ```poetry install```
+2. ```poetry lock```
+3. ```poetry install```
 And this will install all dependencies
 
 ## Set up the environment o Google Collab:
