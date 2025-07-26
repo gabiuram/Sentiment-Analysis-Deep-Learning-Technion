@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 import matplotlib.pyplot as plt
 from sklearn import metrics
-from sentiment_analysis.datasets import UCC_Dataset_BERT, UCC_Dataset_LSTM
+from src.sentiment_analysis.datasets import UCC_Dataset_BERT, UCC_Dataset_LSTM
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 ATTRIBUTES = ['antagonize' , 'condescending', 'dismissive', 'generalisation',

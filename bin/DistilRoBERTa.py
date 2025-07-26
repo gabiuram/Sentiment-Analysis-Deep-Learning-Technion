@@ -6,8 +6,8 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from transformers import AutoTokenizer, AutoModel #hugging face imports
 from sklearn import metrics
-from sentiment_analysis.datasets import UCC_Dataset_BERT
-from sentiment_analysis.utils import Training, ATTRIBUTES, ATTRIBUTES_MERGED
+from src.sentiment_analysis.datasets import UCC_Dataset_BERT
+from src.sentiment_analysis.utils import Training, ATTRIBUTES, ATTRIBUTES_MERGED
 
 TOKENIZER_PATH = "roberta-base"
 TOKENIZER = AutoTokenizer.from_pretrained(TOKENIZER_PATH)

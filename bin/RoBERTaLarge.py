@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoConfig
 from sklearn import metrics
 from peft import get_peft_model, LoraConfig, TaskType
-from sentiment_analysis.datasets import UCC_Dataset_BERT
-from sentiment_analysis.utils import Training, ATTRIBUTES, ATTRIBUTES_MERGED
+from src.sentiment_analysis.datasets import UCC_Dataset_BERT
+from src.sentiment_analysis.utils import Training, ATTRIBUTES, ATTRIBUTES_MERGED
 
 TOKENIZER_PATH = "roberta-large"
 TOKENIZER = AutoTokenizer.from_pretrained(TOKENIZER_PATH)
