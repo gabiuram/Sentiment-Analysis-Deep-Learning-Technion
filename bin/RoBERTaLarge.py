@@ -10,6 +10,9 @@ from peft import get_peft_model, LoraConfig, TaskType
 from sentiment_analysis.datasets import UCC_Dataset_BERT
 from sentiment_analysis.utils import Training, ATTRIBUTES, ATTRIBUTES_MERGED
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 TOKENIZER_PATH = "roberta-large"
 TOKENIZER = AutoTokenizer.from_pretrained(TOKENIZER_PATH)
 MODEL_PATH = 'roberta-large'
