@@ -11,8 +11,8 @@ import torch
 import torch.nn as nn
 from sklearn import metrics
 
-from src.sentiment_analysis.utils import Training, ATTRIBUTES, ATTRIBUTES_MERGED
-from src.sentiment_analysis.datasets import UCC_Dataset_LSTM, TOKENIZER_LSTM
+from sentiment_analysis.utils import Training, ATTRIBUTES, ATTRIBUTES_MERGED
+from sentiment_analysis.datasets import UCC_Dataset_LSTM, TOKENIZER_LSTM
 
 
 HEALTHY_SAMPLE = 11500

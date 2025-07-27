@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 import matplotlib.pyplot as plt
 from sklearn import metrics
-from src.sentiment_analysis.datasets import UCC_Dataset_BERT, UCC_Dataset_LSTM
+from sentiment_analysis.datasets import UCC_Dataset_BERT, UCC_Dataset_LSTM
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 ATTRIBUTES = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
@@ -142,6 +142,7 @@ class Training:
         plt.ylabel('True Positive Rate', fontsize=12, fontweight='bold')
         plt.legend(loc='lower right')
         plt.title(plot_name, fontsize=14, fontweight='bold')
+        plt.savefig("Results.png")
         plt.show()
 
     @staticmethod

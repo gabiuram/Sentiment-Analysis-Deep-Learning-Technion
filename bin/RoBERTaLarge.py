@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoConfig
 from sklearn import metrics
 from peft import get_peft_model, LoraConfig, TaskType
-from src.sentiment_analysis.datasets import UCC_Dataset_BERT
-from src.sentiment_analysis.utils import Training, ATTRIBUTES, ATTRIBUTES_MERGED
+from sentiment_analysis.datasets import UCC_Dataset_BERT
+from sentiment_analysis.utils import Training, ATTRIBUTES, ATTRIBUTES_MERGED
 
 TOKENIZER_PATH = "roberta-large"
 TOKENIZER = AutoTokenizer.from_pretrained(TOKENIZER_PATH)
@@ -172,7 +172,7 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
   plt.title('Loss Curve')
   plt.legend()
   plt.tight_layout()
-  plt.savefig("Final.png")
+  plt.savefig("Training.png")
   plt.show()
 
 if __name__ == '__main__':
@@ -185,6 +185,7 @@ if __name__ == '__main__':
     plt.ylabel('Count')
     plt.xticks(rotation=45)
     plt.tight_layout()
+    plt.savefig("Initial.png")
     plt.show()
 
     healthy_samples = train_data[train_data['healthy'] == 1]
