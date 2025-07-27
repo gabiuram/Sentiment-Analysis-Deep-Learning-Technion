@@ -39,17 +39,17 @@ class UCC_classifier(nn.Module):
         r=8,
         lora_alpha=16,
         target_modules=["query", "value"],
-        lora_dropout=0.1,
+        lora_dropout=0.05,
         bias="none",
         task_type=TaskType.SEQ_CLS
     )
 
     self.roberta = get_peft_model(base_model, lora_config)
-    self.dropout = nn.Dropout(0.3)
+    self.dropout = nn.Dropout(0.1)
     self.fc = nn.Sequential(
         nn.Linear(config.hidden_size, config.hidden_size // 2),
         nn.ReLU(),
-        nn.Dropout(0.3),
+        nn.Dropout(0.1),
         nn.Linear(config.hidden_size // 2, len(ATTRIBUTES))
     )
     nn.init.xavier_uniform_(self.fc[0].weight)
