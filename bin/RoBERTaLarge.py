@@ -20,7 +20,7 @@ HEALTHY_SAMPLE = 5000
 MAX_TOKEN_LEN = 64
 BATCH_SIZE = 64
 NUM_EPOCHS = 21
-LEARNING_RATE = 5e-4
+LEARNING_RATE = 5e-5
 WEIGHT_DECAY = 0.001
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
