@@ -84,10 +84,10 @@ def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
     max_lr=LEARNING_RATE,
     steps_per_epoch=len(train_loader),
     epochs=NUM_EPOCHS,
-    pct_start=0.05,
+    pct_start=0.3,
     anneal_strategy='cos',
-    div_factor=10.0,
-    final_div_factor=100
+    div_factor=5.0,
+    final_div_factor=20
   )
 
   best_val_loss = float('inf')
