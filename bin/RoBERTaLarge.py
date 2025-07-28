@@ -56,8 +56,15 @@ class UCC_classifier(nn.Module):
     nn.init.xavier_uniform_(self.fc[-1].weight)
 
     for name, param in self.roberta.named_parameters():
-      if 'lora' not in name:
-        param.requires_grad = False
+        if (
+                'encoder.layer.22' in name
+                or 'encoder.layer.23' in name
+                or 'lora' in name
+        ):
+            param.requires_grad = True
+        else:
+            param.requires_grad = False
+
 
     for param in self.fc.parameters():
       param.requires_grad = True
