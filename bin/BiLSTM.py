@@ -34,6 +34,7 @@ GLOVE_DIR = './glove.6B'
 
 # Download GloVe embeddings
 def download_glove():
+    """Download and prepare the GloVe embeddings (6B) if not already present."""
     if not os.path.exists(GLOVE_DIR):
         url = "http://nlp.stanford.edu/data/glove.6B.zip"
         zip_path = "glove.6B.zip"
@@ -56,6 +57,7 @@ def download_glove():
 
 
 class PositionalEncoding(nn.Module):
+    """Learned positional encoding layer that adds positional information to embeddings."""
     def __init__(self, num_hiddens, dropout, max_len=1000):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(dropout)
@@ -63,11 +65,13 @@ class PositionalEncoding(nn.Module):
         self.positional_embeddings = nn.Parameter(0.02 * torch.randn(1, max_len, num_hiddens))
 
     def forward(self, X):
+        """Add positional embeddings to input tensor."""
         # if using learned embeddings:
         X = X + self.positional_embeddings[:, :X.shape[1]]  # [bs, seq_len, embed_dim]
         return self.dropout(X)
 
 class Embeddings(nn.Module):
+    """Embedding layer with token embeddings, positional encodings, and layer normalization."""
     def __init__(self, d_model, vocab_size, max_position_embeddings, dropout=0):
         super().__init__()
         self.dropout = dropout
@@ -78,6 +82,7 @@ class Embeddings(nn.Module):
         self.d_model = d_model
 
     def forward(self, input_ids):
+        """Embed tokens, add positional encodings, and apply layer normalization."""
         seq_length = input_ids.size(1)
 
         # Get word embeddings for each input id
@@ -90,6 +95,7 @@ class Embeddings(nn.Module):
         return embeddings
 
 class AttentionLayer(nn.Module):
+    """Additive attention layer that computes context vectors from LSTM outputs."""
     def __init__(self, hidden_size):
         super(AttentionLayer, self).__init__()
         self.attention_proj = nn.Linear(hidden_size, hidden_size)
@@ -97,8 +103,11 @@ class AttentionLayer(nn.Module):
 
     def forward(self, lstm_output, mask=None):
         """
-        lstm_output: (batch_size, seq_len, hidden_size)
-        mask: (batch_size, seq_len), 1 for valid tokens, 0 for padding (optional)
+        Apply attention to LSTM outputs.
+
+        Args:
+            lstm_output: (batch_size, seq_len, hidden_size)
+            mask: (batch_size, seq_len), 1 for valid tokens, 0 for padding (optional)
         """
         proj = torch.tanh(self.attention_proj(lstm_output))  # (batch, seq_len, hidden_size)
 
@@ -118,6 +127,7 @@ class AttentionLayer(nn.Module):
         return context, attention_weights
 
 class UCC_classifier(nn.Module):
+    """BiLSTM + Attention classifier with pre-trained GloVe embeddings and CNN preprocessing."""
     def __init__(self, embedding_dim=200, hidden_dim=256, num_layers=1, dropout=0.3, num_classes=7):
         super(UCC_classifier, self).__init__()
         embedding_matrix = getEmbeddingMatrix()
@@ -163,6 +173,7 @@ class UCC_classifier(nn.Module):
         nn.init.xavier_uniform_(self.classifier[-1].weight)
 
     def forward(self, input_ids, attention_mask=None):
+        """Forward pass through embeddings, CNN, BiLSTM, attention, and classifier."""
         batch_size, seq_len = input_ids.size()
 
         # Embedding
@@ -213,160 +224,161 @@ class UCC_classifier(nn.Module):
 
         return logits
 
-def getEmbeddingMatrix(): # Create a GloVe embedding matrix, dim = 200
-  embeddings_index = {}
-  with open(os.path.join(GLOVE_DIR, f'glove.6B.200d.txt'), encoding='utf-8') as f:
-      for line in f:
-          values = line.split()
-          word = values[0]
-          coefs = np.asarray(values[1:], dtype='float32')
-          embeddings_index[word] = coefs
-  word_index = TOKENIZER_LSTM.word_index
-  num_words = len(word_index) + 1
-  embedding_matrix = np.zeros((num_words, 200))
-  for word, i in word_index.items():
-      if i > num_words:
-          continue
-      embedding_vector = embeddings_index.get(word)
-      if embedding_vector is not None:
-          # words not found in embedding index will be all-zeros.
-          embedding_matrix[i] = embedding_vector
+def getEmbeddingMatrix():
+    """Create the embedding matrix from GloVe vectors for the tokenizer vocabulary."""
+    embeddings_index = {}
+    with open(os.path.join(GLOVE_DIR, f'glove.6B.200d.txt'), encoding='utf-8') as f:
+        for line in f:
+            values = line.split()
+            word = values[0]
+            coefs = np.asarray(values[1:], dtype='float32')
+            embeddings_index[word] = coefs
+    word_index = TOKENIZER_LSTM.word_index
+    num_words = len(word_index) + 1
+    embedding_matrix = np.zeros((num_words, 200))
+    for word, i in word_index.items():
+        if i > num_words:
+            continue
+        embedding_vector = embeddings_index.get(word)
+        if embedding_vector is not None:
+            # words not found in embedding index will be all-zeros.
+            embedding_matrix[i] = embedding_vector
 
-  print(f'Shape of embedding matrix: {embedding_matrix.shape}')
+    print(f'Shape of embedding matrix: {embedding_matrix.shape}')
 
-  # Convert the numpy embedding matrix to a PyTorch tensor
-  return torch.from_numpy(embedding_matrix).float()
+    # Convert the numpy embedding matrix to a PyTorch tensor
+    return torch.from_numpy(embedding_matrix).float()
 
 def train_model(model, train_loader, val_loader, test_loader, test_data, num_epochs = NUM_EPOCHS):
+    """Train the given model with early stopping and track ROC-AUC scores."""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    train_loss_per_epoch = []
+    val_loss_per_epoch = []
 
-  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-  model = model.to(device)
-  train_loss_per_epoch = []
-  val_loss_per_epoch = []
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
-  criterion = nn.BCEWithLogitsLoss()
-  optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=LEARNING_RATE,
+        steps_per_epoch=len(train_loader),
+        epochs=NUM_EPOCHS,
+        pct_start=0.20,
+        anneal_strategy='cos',
+        div_factor=10.0,
+        final_div_factor=100
+    )
+    '''
+    scheduler = get_cosine_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=0.2 * num_epochs * len(train_loader),
+        num_training_steps=num_epochs * len(train_loader)
+    )
+    '''
 
-  scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    optimizer,
-    max_lr=LEARNING_RATE,
-    steps_per_epoch=len(train_loader),
-    epochs=NUM_EPOCHS,
-    pct_start=0.20,
-    anneal_strategy='cos',
-    div_factor=10.0,
-    final_div_factor=100
-  )
-  '''
-  scheduler = get_cosine_schedule_with_warmup(
-      optimizer,
-      num_warmup_steps=0.2 * num_epochs * len(train_loader),
-      num_training_steps=num_epochs * len(train_loader)
-  )
-  '''
+    # Early stopping parameters
+    best_val_loss = float('inf')
+    best_auc = 0.0
+    patience = 10
+    patience_counter = 0
+    completed_epochs = 0 # Track the number of completed epochs
 
-  # Early stopping parameters
-  best_val_loss = float('inf')
-  best_auc = 0.0
-  patience = 10
-  patience_counter = 0
-  completed_epochs = 0 # Track the number of completed epochs
+    # Gradient clipping
+    clipping_value = 0.1 #values to check: [0.01, 0.05, 0.1, 0.5, 1.0]
 
-  # Gradient clipping
-  clipping_value = 0.1 #values to check: [0.01, 0.05, 0.1, 0.5, 1.0]
+    # training loop
+    for epoch in range(1, num_epochs + 1):
+        model.train()  # put in training mode
+        running_loss = 0.0
+        epoch_time = time.time()
+        for batch_data in train_loader:
+            inputs = batch_data['input_ids'].to(device)
+            attention_mask = batch_data['attention_mask'].to(device)
+            labels = batch_data['labels'].to(device)
+            # forward + backward + optimize
+            outputs = model(inputs, attention_mask)  # forward pass
+            loss = criterion(outputs, labels)  # calculate the loss
+            optimizer.zero_grad()  # zero the parameter gradients
+            loss.backward()  # backpropagation
+            torch.nn.utils.clip_grad_norm_(model.parameters(), clipping_value)
+            optimizer.step()  # update parameters
+            scheduler.step()  # placed here because we are using OneCycleLR
 
-  # training loop
-  for epoch in range(1, num_epochs + 1):
-      model.train()  # put in training mode
-      running_loss = 0.0
-      epoch_time = time.time()
-      for batch_data in train_loader:
-          inputs = batch_data['input_ids'].to(device)
-          attention_mask = batch_data['attention_mask'].to(device)
-          labels = batch_data['labels'].to(device)
-          # forward + backward + optimize
-          outputs = model(inputs, attention_mask)  # forward pass
-          loss = criterion(outputs, labels)  # calculate the loss
-          optimizer.zero_grad()  # zero the parameter gradients
-          loss.backward()  # backpropagation
-          torch.nn.utils.clip_grad_norm_(model.parameters(), clipping_value)
-          optimizer.step()  # update parameters
-          scheduler.step()  # placed here because we are using OneCycleLR
+            running_loss += loss.data.item()
 
-          running_loss += loss.data.item()
+        # Normalizing the loss by the total number of train batches
+        running_loss /= len(train_loader)
+        train_loss_per_epoch.append(running_loss)
 
-      # Normalizing the loss by the total number of train batches
-      running_loss /= len(train_loader)
-      train_loss_per_epoch.append(running_loss)
+        val_loss = Training.evaluate_model(model, val_loader, criterion, device)
 
-      val_loss = Training.evaluate_model(model, val_loader, criterion, device)
+        val_loss_per_epoch.append(val_loss)
 
-      val_loss_per_epoch.append(val_loss)
+        completed_epochs = epoch # Update completed_epochs
 
-      completed_epochs = epoch # Update completed_epochs
+        model.eval()
+        predictions = []
+        model.to(device)
 
-      model.eval()
-      predictions = []
-      model.to(device)
+        with torch.no_grad():
+            for batch_data in test_loader:
+                comments = batch_data['input_ids'].to(device)
+                attention_mask = batch_data['attention_mask'].to(device)
+                outputs = model(comments, attention_mask)
+                predictions.extend(outputs.cpu().numpy())
 
-      with torch.no_grad():
-          for batch_data in test_loader:
-              comments = batch_data['input_ids'].to(device)
-              attention_mask = batch_data['attention_mask'].to(device)
-              outputs = model(comments, attention_mask)
-              predictions.extend(outputs.cpu().numpy())
+        predictions = np.array(predictions)
+        labels = np.array(test_data[ATTRIBUTES])
 
-      predictions = np.array(predictions)
-      labels = np.array(test_data[ATTRIBUTES])
+        # Calculate AUC for each attribute and then the average
 
-      # Calculate AUC for each attribute and then the average
+        auc_scores = []
+        for i in range(len(ATTRIBUTES)):
+            try:
+                auc = metrics.roc_auc_score(labels[:, i].astype(int), predictions[:, i])
+                auc_scores.append(auc)
+            except ValueError:
+                # Handle cases where there's only one class in the labels
+                print(f"Could not calculate AUC for attribute {ATTRIBUTES[i]}")
+                pass
 
-      auc_scores = []
-      for i in range(len(ATTRIBUTES)):
-          try:
-              auc = metrics.roc_auc_score(labels[:, i].astype(int), predictions[:, i])
-              auc_scores.append(auc)
-          except ValueError:
-              # Handle cases where there's only one class in the labels
-              print(f"Could not calculate AUC for attribute {ATTRIBUTES[i]}")
-              pass
+        average_auc = np.mean(auc_scores) if auc_scores else 0
 
-      average_auc = np.mean(auc_scores) if auc_scores else 0
+        if average_auc > best_auc:
+            best_auc = average_auc
+            torch.save(model, 'best_model.pth') # Save the entire model
+            torch.save(model.state_dict(), 'best_model_dict.pth')
+            patience_counter = 0
 
-      if average_auc > best_auc:
-          best_auc = average_auc
-          torch.save(model, 'best_model.pth') # Save the entire model
-          torch.save(model.state_dict(), 'best_model_dict.pth')
-          patience_counter = 0
+        else:
+            patience_counter += 1
 
-      else:
-          patience_counter += 1
+        if patience_counter >= patience:
+            print("Early stopping triggered. Training stopped.")
+            break
 
-      if patience_counter >= patience:
-          print("Early stopping triggered. Training stopped.")
-          break
-
-      log = "Epoch: {} | Train Loss: {:.4f} | Val Loss: {:.4f} | ".format(epoch, running_loss, val_loss)
-      epoch_time = time.time() - epoch_time
-      log += "Epoch Time: {:.2f} secs".format(epoch_time)
-      print(log)
+        log = "Epoch: {} | Train Loss: {:.4f} | Val Loss: {:.4f} | ".format(epoch, running_loss, val_loss)
+        epoch_time = time.time() - epoch_time
+        log += "Epoch Time: {:.2f} secs".format(epoch_time)
+        print(log)
 
 
-  print('==> Finished Training ...')
+    print('==> Finished Training ...')
 
-  # Plotting Loss
-  plt.figure(figsize=(8, 5))
-  # Use the actual number of completed epochs for the x-axis
-  plt.plot(range(1, completed_epochs + 1), train_loss_per_epoch, label='Train Loss')
-  plt.plot(range(1, completed_epochs + 1), val_loss_per_epoch, label='Val Loss')
-  plt.xlabel('Epochs')
-  plt.ylabel('Loss')
-  plt.title('Loss Curve')
-  plt.legend()
+    # Plotting Loss
+    plt.figure(figsize=(8, 5))
+    # Use the actual number of completed epochs for the x-axis
+    plt.plot(range(1, completed_epochs + 1), train_loss_per_epoch, label='Train Loss')
+    plt.plot(range(1, completed_epochs + 1), val_loss_per_epoch, label='Val Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.title('Loss Curve')
+    plt.legend()
 
-  plt.tight_layout()
-  plt.show()
-  plt.savefig("Final.png")
+    plt.tight_layout()
+    plt.show()
+    plt.savefig("Final.png")
 
 
 
@@ -394,4 +406,3 @@ if __name__ == '__main__':
 
     model_path = 'best_model.pth'
     Training.evaluate_saved_model(model_path, test_loader, test_data, "BiLSTM + Attention\nROC-AUC Score on Test Set")
-
