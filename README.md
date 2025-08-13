@@ -26,4 +26,64 @@ And this will install all dependencies
 ## Presentation:
 Check our presentation on [YouTube](https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ&start_radio=1)
 
+## Hyperparameters:
+
+### DistilRoBERTa:
+
+| **Hyperparameter**               | **Value**         |
+|-----------------------------------|-------------------|
+| Batch Size                        | 256               |
+| Number of Epochs                  | 21                |
+| Learning Rate                     | 3 × 10⁻⁵          |
+| Weight Decay                      | 0.001             |
+| Optimizer                         | AdamW             |
+| Learning Rate Scheduler           | OneCycleLR        |
+| Gradient Clipping Value           | 0.1               |
+| Dropout Rate                      | 0.4               |
+| Maximum Token Length              | 128               |
+| Additional Healthy Samples*       | 5000              |
+
+
+### BiLSTM:
+
+| **Hyperparameter**               | **Value**         |
+|-----------------------------------|-------------------|
+| Batch Size                        | 16                |
+| Number of Epochs                  | 21                |
+| Learning Rate                     | 5 × 10⁻⁵          |
+| Weight Decay                      | 0.01              |
+| Optimizer                         | AdamW             |
+| Learning Rate Scheduler           | OneCycleLR        |
+| Gradient Clipping Value           | 0.1               |
+| Dropout Rate                      | 0.3               |
+| Maximum Token Length              | 128               |
+| Additional Healthy Samples*       | 11500             |
+| Embedding Dimension               | 200               |
+| Tokenizer Vocab Size              | 10000             |
+| Convolution Kernel Size           | 3                 |
+| Convolution Padding               | 1                 |
+| BiLSTM Num Layers                 | 1                 |
+
+
+### RoBERTa Large:
+
+| **Hyperparameter**                | **Value**                    |
+|------------------------------------|------------------------------|
+| LoRA Rank (r)                      | 8                            |
+| LoRA Alpha                         | 16                           |
+| LoRA Dropout                       | 0.05                         |
+| Batch Size                         | 64                           |
+| Number of Epochs                   | 21                           |
+| Learning Rate                      | 5 × 10⁻⁵                     |
+| Weight Decay                       | 0.001                        |
+| Optimizer                          | AdamW                        |
+| Learning Rate Scheduler            | OneCycleLR                   |
+| Dropout Rate (Classifier)          | 0.1                          |
+| Maximum Token Length               | 64 (due to memory issues)    |
+| Additional Healthy Samples*        | 5000                         |
+| Gradient Clipping Value            | 0.1                          |
+
+
+
+
 
