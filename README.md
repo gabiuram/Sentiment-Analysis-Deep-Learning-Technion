@@ -24,7 +24,7 @@ And this will install all dependencies
 5. ```!poetry install```
 
 ## Presentation:
-Check our presentation on [YouTube](https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ&start_radio=1)
+Check our presentation on [YouTube](https://youtu.be/UBp0iDa1Nt0)
 
 ## Hyperparameters:
 
