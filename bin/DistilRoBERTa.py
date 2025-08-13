@@ -26,7 +26,14 @@ attributes = [
     'hostile', 'sarcastic', 'healthy']
 
 class UCC_classifier(nn.Module):
+  """RoBERTa-based classifier for multi-label sentiment attributes."""
   def __init__(self):
+    """
+    Initializes the UCC_classifier model.
+
+    Loads a pre-trained DistilRoBERTa model, adds dropout, and a fully connected
+    classification head to output logits for each attribute.
+    """
     super(UCC_classifier, self).__init__()
     self.roBERTa = AutoModel.from_pretrained(MODEL_PATH, return_dict=True)
     self.dropout = nn.Dropout(0.4)
@@ -40,6 +47,16 @@ class UCC_classifier(nn.Module):
     nn.init.xavier_uniform_(self.fc[-1].weight)
 
   def forward(self, input_ids, attention_mask):
+    """
+    Forward pass for the classifier.
+
+    Args:
+        input_ids (Tensor): Token IDs for the input text (batch_size, seq_len).
+        attention_mask (Tensor): Attention mask for padding tokens.
+
+    Returns:
+        Tensor: Logits for each attribute (batch_size, num_attributes).
+    """
     x = self.roBERTa(input_ids=input_ids, attention_mask=attention_mask)
     x = torch.mean(x.last_hidden_state, 1)
     x = self.dropout(x)
@@ -48,6 +65,23 @@ class UCC_classifier(nn.Module):
 
 
 def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
+  """
+  Train the given model using OneCycleLR and early stopping.
+
+  Args:
+      model (nn.Module): The model to train.
+      train_loader (DataLoader): DataLoader for the training set.
+      val_loader (DataLoader): DataLoader for the validation set.
+      num_epochs (int): Maximum number of epochs to train.
+
+  Behavior:
+      - Uses BCEWithLogitsLoss for multi-label classification.
+      - Tracks and prints training/validation loss per epoch.
+      - Computes average ROC-AUC on the test set each epoch.
+      - Saves the best model weights based on ROC-AUC.
+      - Stops early if no improvement after 'patience' epochs.
+      - Plots and saves loss curves.
+  """
   best_auc = 0
   device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
   model = model.to(device)
