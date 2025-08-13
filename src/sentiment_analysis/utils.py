@@ -12,47 +12,68 @@ ATTRIBUTES = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
 ATTRIBUTES_MERGED = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
     'hostile', 'sarcastic', 'unhealthy', 'healthy']
 
-class Training:
 
-    #balance training data by removing healthy labels without hurting other attributes
+class Training:
+    """Utility class containing preprocessing, data loading, and evaluation functions for sentiment analysis models."""
+
     @staticmethod
     def preprocess_train(train_data, healthy_sample, attributes, attributes_merged):
-      healthy_symptomatic = train_data[
-          (train_data['healthy'] == 1) &
-          (train_data[attributes].sum(axis=1) > 1)
-      ]
+        """
+        Balance the training dataset by sampling healthy labels without reducing other attribute diversity.
 
-      healthy_clean = train_data[
-          (train_data['healthy'] == 1) &
-          (train_data[attributes].sum(axis=1) == 1)
-      ]
+        Args:
+            train_data (pd.DataFrame): Original training dataframe.
+            healthy_sample (int): Additional number of healthy samples to include.
+            attributes (list): List of target attribute column names.
+            attributes_merged (list): List of attributes including 'healthy'.
 
-      unhealthy = train_data[train_data['healthy'] == 0]
+        Returns:
+            pd.DataFrame: Balanced and shuffled training dataframe.
+        """
+        healthy_symptomatic = train_data[
+            (train_data['healthy'] == 1) &
+            (train_data[attributes].sum(axis=1) > 1)
+        ]
 
-      sample_size = len(unhealthy) - len(healthy_symptomatic) + healthy_sample #need more healthy samples to reflect distribution
+        healthy_clean = train_data[
+            (train_data['healthy'] == 1) &
+            (train_data[attributes].sum(axis=1) == 1)
+        ]
 
-      healthy_clean = healthy_clean.sample(n=sample_size, random_state=42)
+        unhealthy = train_data[train_data['healthy'] == 0]
 
-      balanced_train_data = pd.concat([healthy_symptomatic, healthy_clean, unhealthy])
+        sample_size = len(unhealthy) - len(healthy_symptomatic) + healthy_sample
+        healthy_clean = healthy_clean.sample(n=sample_size, random_state=42)
 
-      #shuffle the dataset
-      balanced_train_data = balanced_train_data.sample(frac=1, random_state=42).reset_index(drop=True)
+        balanced_train_data = pd.concat([healthy_symptomatic, healthy_clean, unhealthy])
+        balanced_train_data = balanced_train_data.sample(frac=1, random_state=42).reset_index(drop=True)
 
-      #add additional unhealthy label for comparative purposes: https://github.com/conversationai/unhealthy-conversations?tab=readme-ov-file
-      balanced_train_data['unhealthy'] = 1 - balanced_train_data['healthy']
+        balanced_train_data['unhealthy'] = 1 - balanced_train_data['healthy']
 
-      balanced_train_data[attributes_merged].sum().plot(kind='bar')
-      plt.title('Training Samples per Attribute After Preprocessing')
-      plt.ylabel('Count')
-      plt.xticks(rotation=45)
-      plt.tight_layout()
-      plt.show()
+        balanced_train_data[attributes_merged].sum().plot(kind='bar')
+        plt.title('Training Samples per Attribute After Preprocessing')
+        plt.ylabel('Count')
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.show()
 
-      return balanced_train_data
+        return balanced_train_data
 
     @staticmethod
     def load_data(train_data, val_data, test_data, batch_size, dataset_class):
-        # Add the 'unhealthy' column to val_data
+        """
+        Create dataset objects and data loaders for training, validation, and testing.
+
+        Args:
+            train_data (pd.DataFrame): Training dataframe.
+            val_data (pd.DataFrame): Validation dataframe.
+            test_data (pd.DataFrame): Test dataframe.
+            batch_size (int): Batch size for data loaders.
+            dataset_class (type): Dataset class to use (UCC_Dataset_BERT or UCC_Dataset_LSTM).
+
+        Returns:
+            tuple: (train_ds, val_ds, train_loader, val_loader, test_loader)
+        """
         val_data['unhealthy'] = 1 - val_data['healthy']
         test_data['unhealthy'] = 1 - test_data['healthy']
 
@@ -64,7 +85,6 @@ class Training:
             train_ds = UCC_Dataset_LSTM(train_data)
             val_ds = UCC_Dataset_LSTM(val_data, fit_tokenizer=False)
             test_ds = UCC_Dataset_LSTM(test_data, fit_tokenizer=False)
-
 
         train_loader = torch.utils.data.DataLoader(
             dataset=train_ds,
@@ -94,6 +114,12 @@ class Training:
 
     @staticmethod
     def print_model_size(model):
+        """
+        Print the size of a PyTorch model in MB.
+
+        Args:
+            model (torch.nn.Module): The model to evaluate.
+        """
         param_size = 0
         for param in model.parameters():
             param_size += param.nelement() * param.element_size()
@@ -104,18 +130,26 @@ class Training:
         print(f"model size: {size_all_mb:.2f} MB")
 
     @staticmethod
-    def evaluate_saved_model(model_path,test_loader, test_data, plot_name, LLM=False, classifier=None):
+    def evaluate_saved_model(model_path, test_loader, test_data, plot_name, LLM=False, classifier=None):
+        """
+        Load a saved model and evaluate it on the test set, plotting ROC curves.
+
+        Args:
+            model_path (str): Path to the saved model file.
+            test_loader (DataLoader): DataLoader for the test set.
+            test_data (pd.DataFrame): Test dataframe containing labels.
+            plot_name (str): Title for the ROC plot.
+            LLM (bool, optional): Whether the model is a language model requiring a classifier wrapper. Defaults to False.
+            classifier (type, optional): Classifier class to initialize if LLM is True.
+        """
         labels = np.array(test_data[ATTRIBUTES])
-        # Load the best model state dictionary
         if LLM:
             model = classifier()
-            model.load_state_dict(torch.load(model_path, weights_only = False,  map_location=torch.device("cpu")))
+            model.load_state_dict(torch.load(model_path, weights_only=False, map_location=torch.device("cpu")))
         else:
-            model = torch.load(model_path, weights_only = False,  map_location=torch.device("cpu"))
+            model = torch.load(model_path, weights_only=False, map_location=torch.device("cpu"))
 
-        # Set the model to evaluation mode
         model.eval()
-
         predictions = []
         model.to(device)
 
@@ -123,20 +157,18 @@ class Training:
             for batch_data in test_loader:
                 comments = batch_data['input_ids'].to(device)
                 attention_mask = batch_data['attention_mask'].to(device)
-
                 outputs = model(comments, attention_mask)
                 predictions.extend(outputs.cpu().numpy())
 
         predictions = np.array(predictions)
 
         print("Printing Results")
-
         plt.figure(figsize=(15, 8))
         for i, attribute in enumerate(ATTRIBUTES):
             fpr, tpr, _ = metrics.roc_curve(
-                labels[:,i].astype(int), predictions[:, i])
+                labels[:, i].astype(int), predictions[:, i])
             auc = metrics.roc_auc_score(
-                labels[:,i].astype(int), predictions[:, i])
+                labels[:, i].astype(int), predictions[:, i])
             plt.plot(fpr, tpr, label='%s %g' % (attribute, auc))
         plt.xlabel('False Positive Rate', fontsize=12, fontweight='bold')
         plt.ylabel('True Positive Rate', fontsize=12, fontweight='bold')
@@ -147,6 +179,18 @@ class Training:
 
     @staticmethod
     def evaluate_model(model, val_loader, criterion, device):
+        """
+        Evaluate a model on the validation set and return the loss.
+
+        Args:
+            model (torch.nn.Module): Model to evaluate.
+            val_loader (DataLoader): DataLoader for the validation set.
+            criterion: Loss function to compute validation loss.
+            device (torch.device): Device to perform computation on.
+
+        Returns:
+            float: Average validation loss.
+        """
         model.eval()
         val_loss = 0
         with torch.no_grad():

@@ -11,57 +11,76 @@ TOKENIZER_LSTM = Tokenizer(
     split=' ',
     char_level=False
 )
+
 ATTRIBUTES = ['antagonize' , 'condescending', 'dismissive', 'generalisation',
     'hostile', 'sarcastic', 'unhealthy']
+
+
 class UCC_Dataset_LSTM(torch.utils.data.Dataset):
+    """PyTorch Dataset for LSTM-based sentiment classification."""
+
     def __init__(self, data, max_length=512, vocab_size=10000, fit_tokenizer=True):
+        """
+        Initialize the LSTM dataset.
+
+        Args:
+            data (pd.DataFrame): Input dataframe containing 'comment' and label columns.
+            max_length (int, optional): Maximum sequence length for padding/truncating. Defaults to 512.
+            vocab_size (int, optional): Maximum vocabulary size for tokenizer. Defaults to 10000.
+            fit_tokenizer (bool, optional): Whether to fit tokenizer on provided data. Defaults to True.
+        """
         self.data = data.copy()
         self.max_length = max_length
         self.vocab_size = vocab_size
         self.tokenizer = TOKENIZER_LSTM
         self.attributes = ATTRIBUTES
 
-        # Extract texts and labels
         self.texts = data['comment'].astype(str).tolist()
         self.labels = data[self.attributes].values.astype(np.float32)
 
-        #fit_tokenizer should be set to True during training and False otherwise
         if fit_tokenizer:
             self._fit_tokenizer()
 
-        # Tokenize all texts
         self.tokenized_texts = self._tokenize_texts()
 
     def _fit_tokenizer(self):
+        """Fit the tokenizer on the dataset texts."""
         self.tokenizer.num_words = self.vocab_size
         self.tokenizer.fit_on_texts(self.texts)
 
     def _tokenize_texts(self):
-        # Convert texts to sequences
-        sequences = self.tokenizer.texts_to_sequences(self.texts)
+        """
+        Tokenize and pad the dataset texts.
 
-        # Pad sequences to max_length
+        Returns:
+            np.ndarray: Tokenized and padded sequences.
+        """
+        sequences = self.tokenizer.texts_to_sequences(self.texts)
         padded_sequences = pad_sequences(
             sequences,
             maxlen=self.max_length,
             padding='post',
             truncating='post',
-            value=0  # padding value
+            value=0
         )
-
         return padded_sequences
 
     def __len__(self):
+        """Return the number of samples in the dataset."""
         return len(self.texts)
 
     def __getitem__(self, idx):
-        # Get tokenized text
+        """
+        Retrieve a single sample from the dataset.
+
+        Args:
+            idx (int): Index of the sample.
+
+        Returns:
+            dict: Dictionary containing input_ids, attention_mask, and labels.
+        """
         input_ids = torch.tensor(self.tokenized_texts[idx], dtype=torch.long)
-
-        # Create attention mask (1 for real tokens, 0 for padding)
         attention_mask = (input_ids != 0).long()
-
-        # Get labels
         labels = torch.tensor(self.labels[idx], dtype=torch.float32)
 
         return {
@@ -70,36 +89,54 @@ class UCC_Dataset_LSTM(torch.utils.data.Dataset):
             'labels': labels,
         }
 
+
 TOKENIZER_PATH = "roberta-base"
 TOKENIZER_BERT = AutoTokenizer.from_pretrained(TOKENIZER_PATH)
 MAX_TOKEN_LEN_BERT = 128
 
+
 class UCC_Dataset_BERT(torch.utils.data.Dataset):
-  def __init__(self, data):
-    self.data = data
-    self.tokenizer = TOKENIZER_BERT
-    self.attributes = ATTRIBUTES
-    self.max_token_len = MAX_TOKEN_LEN_BERT
+    """PyTorch Dataset for BERT-based sentiment classification."""
 
-  def __len__(self):
-    return len(self.data)
+    def __init__(self, data):
+        """
+        Initialize the BERT dataset.
 
-  def __getitem__(self, idx):
-    comment = str(self.data.iloc[idx].comment)
-    # Explicitly cast to float to ensure numeric type
-    labels = torch.tensor(self.data.loc[idx, self.attributes].values.astype(float), dtype=torch.float)
-#https://huggingface.co/docs/transformers/internal/tokenization_utils#transformers.tokenization_utils_base.PreTrainedTokenizerBase.batch_encode_plus:~:text=tokenize(text)).-,encode_plus,-%3C
-    tokenized_comment = self.tokenizer.encode_plus(
-        comment,
-        add_special_tokens = True,
-        padding = 'max_length',
-        truncation = True,
-        max_length = self.max_token_len,
-        return_tensors = 'pt',
-        return_attention_mask = True)
-    return {
-        'input_ids': tokenized_comment['input_ids'].flatten(),
-        'attention_mask': tokenized_comment['attention_mask'].flatten(),
-        'labels': labels
-    }
+        Args:
+            data (pd.DataFrame): Input dataframe containing 'comment' and label columns.
+        """
+        self.data = data
+        self.tokenizer = TOKENIZER_BERT
+        self.attributes = ATTRIBUTES
+        self.max_token_len = MAX_TOKEN_LEN_BERT
 
+    def __len__(self):
+        """Return the number of samples in the dataset."""
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        """
+        Retrieve a single sample from the dataset.
+
+        Args:
+            idx (int): Index of the sample.
+
+        Returns:
+            dict: Dictionary containing tokenized input_ids, attention_mask, and labels.
+        """
+        comment = str(self.data.iloc[idx].comment)
+        labels = torch.tensor(self.data.loc[idx, self.attributes].values.astype(float), dtype=torch.float)
+        tokenized_comment = self.tokenizer.encode_plus(
+            comment,
+            add_special_tokens=True,
+            padding='max_length',
+            truncation=True,
+            max_length=self.max_token_len,
+            return_tensors='pt',
+            return_attention_mask=True
+        )
+        return {
+            'input_ids': tokenized_comment['input_ids'].flatten(),
+            'attention_mask': tokenized_comment['attention_mask'].flatten(),
+            'labels': labels
+        }
