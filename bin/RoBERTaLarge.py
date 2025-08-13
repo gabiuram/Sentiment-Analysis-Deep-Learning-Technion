@@ -30,153 +30,190 @@ attributes = [
     'hostile', 'sarcastic', 'healthy']
 
 class UCC_classifier(nn.Module):
-  def __init__(self):
-    super(UCC_classifier, self).__init__()
-    config = AutoConfig.from_pretrained(MODEL_PATH, num_labels=len(ATTRIBUTES), problem_type="multi_label_classification")
-    base_model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH, config=config)
+    """RoBERTa-large based multi-label sentiment classifier with LoRA fine-tuning."""
 
-    lora_config = LoraConfig(
-        r=8,
-        lora_alpha=16,
-        target_modules=["query", "value"],
-        lora_dropout=0.05,
-        bias="none",
-        task_type=TaskType.SEQ_CLS
+    def __init__(self):
+        """
+        Initialize the UCC_classifier model.
+
+        Loads a pre-trained RoBERTa-large model for sequence classification,
+        applies LoRA (Low-Rank Adaptation) for efficient fine-tuning,
+        freezes non-LoRA parameters, and adds a fully connected classification head.
+        """
+        super(UCC_classifier, self).__init__()
+        config = AutoConfig.from_pretrained(MODEL_PATH, num_labels=len(ATTRIBUTES), problem_type="multi_label_classification")
+        base_model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH, config=config)
+
+        lora_config = LoraConfig(
+            r=8,
+            lora_alpha=16,
+            target_modules=["query", "value"],
+            lora_dropout=0.05,
+            bias="none",
+            task_type=TaskType.SEQ_CLS
+        )
+
+        self.roberta = get_peft_model(base_model, lora_config)
+        self.dropout = nn.Dropout(0.1)
+        self.fc = nn.Sequential(
+            nn.Linear(config.hidden_size, config.hidden_size // 2),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(config.hidden_size // 2, len(ATTRIBUTES))
+        )
+        nn.init.xavier_uniform_(self.fc[0].weight)
+        nn.init.xavier_uniform_(self.fc[-1].weight)
+
+        for name, param in self.roberta.named_parameters():
+            if 'lora' not in name:
+                param.requires_grad = False
+
+        for param in self.fc.parameters():
+            param.requires_grad = True
+
+    def forward(self, input_ids, attention_mask):
+        """
+        Forward pass for the classifier.
+
+        Args:
+            input_ids (torch.Tensor): Token IDs for the input text.
+            attention_mask (torch.Tensor): Attention mask to ignore padding tokens.
+
+        Returns:
+            torch.Tensor: Logits for each sentiment attribute.
+        """
+        x = self.roberta.roberta(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+        x = torch.mean(x, 1)
+        x = self.dropout(x)
+        x = self.fc(x)
+        return x
+
+
+def train_model(model, train_loader, val_loader, num_epochs=NUM_EPOCHS):
+    """
+    Train the given model with OneCycleLR and early stopping.
+
+    Args:
+        model (nn.Module): The model to train.
+        train_loader (DataLoader): DataLoader for the training set.
+        val_loader (DataLoader): DataLoader for the validation set.
+        num_epochs (int, optional): Number of epochs to train. Defaults to NUM_EPOCHS.
+
+    Behavior:
+        - Uses BCEWithLogitsLoss for multi-label classification.
+        - Applies OneCycleLR learning rate scheduling.
+        - Implements early stopping based on ROC-AUC improvement.
+        - Saves the best-performing model.
+        - Plots training and validation loss curves.
+    """
+    best_auc = 0
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    train_loss_per_epoch = []
+    val_loss_per_epoch = []
+
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=LEARNING_RATE,
+        steps_per_epoch=len(train_loader),
+        epochs=NUM_EPOCHS,
+        pct_start=0.05,
+        anneal_strategy='cos',
+        div_factor=10.0,
+        final_div_factor=100
     )
 
-    self.roberta = get_peft_model(base_model, lora_config)
-    self.dropout = nn.Dropout(0.1)
-    self.fc = nn.Sequential(
-        nn.Linear(config.hidden_size, config.hidden_size // 2),
-        nn.ReLU(),
-        nn.Dropout(0.1),
-        nn.Linear(config.hidden_size // 2, len(ATTRIBUTES))
-    )
-    nn.init.xavier_uniform_(self.fc[0].weight)
-    nn.init.xavier_uniform_(self.fc[-1].weight)
+    best_val_loss = float('inf')
+    patience = 10
+    patience_counter = 0
+    completed_epochs = 0
+    clipping_value = 0.1
 
-    for name, param in self.roberta.named_parameters():
-      if 'lora' not in name:
-        param.requires_grad = False
+    for epoch in range(1, num_epochs + 1):
+        model.train()
+        running_loss = 0.0
+        epoch_time = time.time()
+        for batch_data in train_loader:
+            inputs = batch_data['input_ids'].to(device)
+            attention_mask = batch_data['attention_mask'].to(device)
+            labels = batch_data['labels'].to(device)
 
-    for param in self.fc.parameters():
-      param.requires_grad = True
+            outputs = model(inputs, attention_mask)
+            loss = criterion(outputs, labels)
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), clipping_value)
+            optimizer.step()
+            scheduler.step()
 
-  def forward(self, input_ids, attention_mask):
-    x = self.roberta.roberta(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
-    x = torch.mean(x, 1)
-    x = self.dropout(x)
-    x = self.fc(x)
-    return x
+            running_loss += loss.data.item()
 
-def train_model(model, train_loader, val_loader, num_epochs = NUM_EPOCHS):
-  best_auc = 0
-  device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-  model = model.to(device)
-  train_loss_per_epoch = []
-  val_loss_per_epoch = []
+        running_loss /= len(train_loader)
+        train_loss_per_epoch.append(running_loss)
 
-  criterion = nn.BCEWithLogitsLoss()
-  optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+        val_loss = Training.evaluate_model(model, val_loader, criterion, device)
+        val_loss_per_epoch.append(val_loss)
+        completed_epochs = epoch
 
-  scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    optimizer,
-    max_lr=LEARNING_RATE,
-    steps_per_epoch=len(train_loader),
-    epochs=NUM_EPOCHS,
-    pct_start=0.05,
-    anneal_strategy='cos',
-    div_factor=10.0,
-    final_div_factor=100
-  )
+        model.eval()
+        predictions = []
+        model.to(device)
 
-  best_val_loss = float('inf')
-  patience = 10
-  patience_counter = 0
-  completed_epochs = 0
-  clipping_value = 0.1
+        with torch.no_grad():
+            for batch_data in test_loader:
+                comments = batch_data['input_ids'].to(device)
+                attention_mask = batch_data['attention_mask'].to(device)
+                outputs = model(comments, attention_mask)
+                predictions.extend(outputs.cpu().numpy())
 
-  for epoch in range(1, num_epochs + 1):
-      model.train()
-      running_loss = 0.0
-      epoch_time = time.time()
-      for batch_data in train_loader:
-          inputs = batch_data['input_ids'].to(device)
-          attention_mask = batch_data['attention_mask'].to(device)
-          labels = batch_data['labels'].to(device)
+        predictions = np.array(predictions)
+        labels = np.array(test_data[ATTRIBUTES])
 
-          outputs = model(inputs, attention_mask)
-          loss = criterion(outputs, labels)
-          optimizer.zero_grad()
-          loss.backward()
-          torch.nn.utils.clip_grad_norm_(model.parameters(), clipping_value)
-          optimizer.step()
-          scheduler.step()
+        auc_scores = []
+        for i in range(len(ATTRIBUTES)):
+            try:
+                auc = metrics.roc_auc_score(labels[:, i].astype(int), predictions[:, i])
+                auc_scores.append(auc)
+            except ValueError:
+                print(f"Could not calculate AUC for attribute {ATTRIBUTES[i]}")
+                pass
 
-          running_loss += loss.data.item()
+        average_auc = np.mean(auc_scores) if auc_scores else 0
 
-      running_loss /= len(train_loader)
-      train_loss_per_epoch.append(running_loss)
+        if average_auc > best_auc:
+            best_auc = average_auc
+            patience_counter = 0
+            torch.save(model.state_dict(), 'best_model.pth')
+        else:
+            patience_counter += 1
 
-      val_loss = Training.evaluate_model(model, val_loader, criterion, device)
-      val_loss_per_epoch.append(val_loss)
-      completed_epochs = epoch
+        if patience_counter >= patience:
+            print("Early stopping triggered. Training stopped.")
+            break
 
-      model.eval()
-      predictions = []
-      model.to(device)
+        log = "Epoch: {} | Train Loss: {:.4f} | Val Loss: {:.4f} | ".format(epoch, running_loss, val_loss)
+        epoch_time = time.time() - epoch_time
+        log += "Epoch Time: {:.2f} secs".format(epoch_time)
+        print(log)
 
-      with torch.no_grad():
-          for batch_data in test_loader:
-              comments = batch_data['input_ids'].to(device)
-              attention_mask = batch_data['attention_mask'].to(device)
-              outputs = model(comments, attention_mask)
-              predictions.extend(outputs.cpu().numpy())
+        torch.cuda.empty_cache()
 
-      predictions = np.array(predictions)
-      labels = np.array(test_data[ATTRIBUTES])
+    print('==> Finished Training ...')
 
-      auc_scores = []
-      for i in range(len(ATTRIBUTES)):
-          try:
-              auc = metrics.roc_auc_score(labels[:, i].astype(int), predictions[:, i])
-              auc_scores.append(auc)
-          except ValueError:
-              print(f"Could not calculate AUC for attribute {ATTRIBUTES[i]}")
-              pass
+    plt.figure(figsize=(8, 5))
+    plt.plot(range(1, completed_epochs + 1), train_loss_per_epoch, label='Train Loss')
+    plt.plot(range(1, completed_epochs + 1), val_loss_per_epoch, label='Val Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.title('Loss Curve')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("Training.png")
+    plt.show()
 
-      average_auc = np.mean(auc_scores) if auc_scores else 0
-
-      if average_auc > best_auc:
-          best_auc = average_auc
-          patience_counter = 0
-          torch.save(model.state_dict(), 'best_model.pth')
-      else:
-          patience_counter += 1
-
-      if patience_counter >= patience:
-          print("Early stopping triggered. Training stopped.")
-          break
-
-      log = "Epoch: {} | Train Loss: {:.4f} | Val Loss: {:.4f} | ".format(epoch, running_loss, val_loss)
-      epoch_time = time.time() - epoch_time
-      log += "Epoch Time: {:.2f} secs".format(epoch_time)
-      print(log)
-
-      torch.cuda.empty_cache()
-
-  print('==> Finished Training ...')
-
-  plt.figure(figsize=(8, 5))
-  plt.plot(range(1, completed_epochs + 1), train_loss_per_epoch, label='Train Loss')
-  plt.plot(range(1, completed_epochs + 1), val_loss_per_epoch, label='Val Loss')
-  plt.xlabel('Epochs')
-  plt.ylabel('Loss')
-  plt.title('Loss Curve')
-  plt.legend()
-  plt.tight_layout()
-  plt.savefig("Training.png")
-  plt.show()
 
 if __name__ == '__main__':
     train_data = pd.read_csv('data/train.csv')
