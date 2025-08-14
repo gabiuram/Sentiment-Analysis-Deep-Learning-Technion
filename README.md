@@ -85,5 +85,7 @@ Check our presentation on [YouTube](https://youtu.be/UBp0iDa1Nt0)
 
 
 
+## Link to Google Drive for models:
 
+https://drive.google.com/drive/folders/1B1hynx3aQCdqTjjTwQsVB5XhD93SsHQl?usp=sharing
 
